@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -14,7 +13,7 @@ import (
 )
 
 // TokenStorage is used to cache and retrieve tokens
-// WIP - this doesn't yet support keying off of user or auth service
+// WIP - this doesn't yet support keying off of user
 type TokenStorage interface {
 	Get(string) (*oauth2.Token, error)
 	Save(string, *oauth2.Token) error
@@ -38,9 +37,6 @@ type Config struct {
 }
 
 func (c *Config) oauth2Config() *oauth2.Config {
-	if c.CallbackPort == 0 {
-		c.CallbackPort = 8080
-	}
 	return &oauth2.Config{
 		ClientID:     c.ClientID,
 		ClientSecret: c.ClientSecret,
@@ -64,6 +60,9 @@ type Client struct {
 
 // NewClient creates a new client with the specified authorization parameters
 func NewClient(ctx context.Context, config *Config, tokenStorage TokenStorage) (*Client, error) {
+	if config.CallbackPort == 0 {
+		config.CallbackPort = 8080
+	}
 	oauthConfig := config.oauth2Config()
 	// try cache first
 	var storageKey string
@@ -90,15 +89,19 @@ func NewClient(ctx context.Context, config *Config, tokenStorage TokenStorage) (
 	}
 	// get via authorization flow
 	state := randStringBytes(40)
-	log.Printf("\nto continue, please log in and authorize this application at: \n%s\n\n", oauthConfig.AuthCodeURL(state))
+	fmt.Printf("\nto continue, please log in and authorize this application at: \n%s\n\n", oauthConfig.AuthCodeURL(state))
 	// start an http server and wait for callback
 	queryValCh := make(chan url.Values)
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Thank you. You may continue using the application now that you are signed in.")
+		//fmt.Fprintf(w, "Thank you. You may continue using the application now that you are signed in.")
+		fmt.Println("DEBUG:: callback url hit")
 		queryValCh <- r.URL.Query()
 	})
-	go http.ListenAndServe(":8080", nil)
+	port := fmt.Sprintf(":%d", config.CallbackPort)
+	fmt.Printf("DEBUG:: listening on port %s\n", port)
+	go http.ListenAndServe(port, nil)
 	queryVals := <-queryValCh
+	fmt.Println("DEBUG:: verifying code from callback")
 	// verify response
 	code := queryVals.Get("code")
 	if code == "" {
@@ -107,11 +110,13 @@ func NewClient(ctx context.Context, config *Config, tokenStorage TokenStorage) (
 	if actualState := queryVals.Get("state"); actualState != state {
 		return nil, errors.New("redirect state parameter doesn't match")
 	}
+	fmt.Println("DEBUG:: code verified, exchanging for token")
 	// exchange code for token
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("DEBUG:: success")
 	return &Client{
 		Client:          oauthConfig.Client(ctx, token),
 		token:           token,
