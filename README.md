@@ -58,5 +58,3 @@ func main() {
 You'll want to implement the `TokenStorage` interface and pass that to the `NewClient(...)` method in order to persist tokens. Otherwise the user will have to open a web browser and authenticate every time.
 
 **Be very careful with storing tokens if you plan to authorize multiple users.**
-
-This lib currently does not do a good job with securing tokens - it keys storage based on auth domain only.
