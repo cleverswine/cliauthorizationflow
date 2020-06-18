@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -89,19 +90,23 @@ func NewClient(ctx context.Context, config *Config, tokenStorage TokenStorage) (
 	}
 	// get via authorization flow
 	state := randStringBytes(40)
-	fmt.Printf("\nto continue, please log in and authorize this application at: \n%s\n\n", oauthConfig.AuthCodeURL(state))
+	fmt.Printf("\n--- to continue, please log in and authorize at the following url --- \n%s\n\n", oauthConfig.AuthCodeURL(state))
 	// start an http server and wait for callback
 	queryValCh := make(chan url.Values)
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		//fmt.Fprintf(w, "Thank you. You may continue using the application now that you are signed in.")
-		fmt.Println("DEBUG:: callback url hit")
+		fmt.Fprintf(w, "Thank you. You may continue using the application now that you are signed in.")
+		fmt.Println("AUTH_DEBUG:: callback url hit")
 		queryValCh <- r.URL.Query()
 	})
 	port := fmt.Sprintf(":%d", config.CallbackPort)
-	fmt.Printf("DEBUG:: listening on port %s\n", port)
-	go http.ListenAndServe(port, nil)
+	fmt.Printf("AUTH_DEBUG:: waiting for callback on port %s\n", port)
+	go func() {
+		if err := http.ListenAndServe(port, nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
 	queryVals := <-queryValCh
-	fmt.Println("DEBUG:: verifying code from callback")
+	fmt.Println("AUTH_DEBUG:: verifying code from callback")
 	// verify response
 	code := queryVals.Get("code")
 	if code == "" {
@@ -110,13 +115,13 @@ func NewClient(ctx context.Context, config *Config, tokenStorage TokenStorage) (
 	if actualState := queryVals.Get("state"); actualState != state {
 		return nil, errors.New("redirect state parameter doesn't match")
 	}
-	fmt.Println("DEBUG:: code verified, exchanging for token")
+	fmt.Println("AUTH_DEBUG:: code verified, exchanging for token")
 	// exchange code for token
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("DEBUG:: success")
+	fmt.Println("AUTH_DEBUG:: success")
 	return &Client{
 		Client:          oauthConfig.Client(ctx, token),
 		token:           token,
