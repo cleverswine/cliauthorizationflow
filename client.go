@@ -94,7 +94,7 @@ func NewClient(ctx context.Context, config *Config, tokenStorage TokenStorage) (
 	// start an http server and wait for callback
 	queryValCh := make(chan url.Values)
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Thank you"))
+		fmt.Fprintf(w, "Thank you. You may continue using the application now that you are signed in.")
 		queryValCh <- r.URL.Query()
 	})
 	go http.ListenAndServe(":8080", nil)
