@@ -13,13 +13,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// TokenStorage is used to cache and retrieve tokens
-// WIP - this doesn't yet support keying off of user
-type TokenStorage interface {
-	Get(string) (*oauth2.Token, error)
-	Save(string, *oauth2.Token) error
-}
-
 // Config describes a typical 3-legged OAuth2 flow, with both the
 // client application information and the server's endpoint URLs.
 type Config struct {
@@ -136,7 +129,10 @@ func (a *Client) Persist() {
 		return
 	}
 	// token may have been updated via refresh token
-	a.tokenStorage.Save(a.tokenStorageKey, a.token)
+	err := a.tokenStorage.Save(a.tokenStorageKey, a.token)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func randStringBytes(n int) string {
